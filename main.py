@@ -1,72 +1,58 @@
-import pandas as pd
 import logging
-from sqlalchemy import create_engine
+
+from etl.extract import extract_data
+from etl.transform import clean_data, add_salary_level, validate_data
+from etl.load import load_data
 from config import DB_CONFIG
 
-# ======================
-# Logging setup
-# ======================
+
+# =========================
+# Logging Configuration
+# =========================
 logging.basicConfig(
+    filename="etl.log",
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-logging.info("START ETL")
 
-# ======================
-# Extract
-# ======================
-try:
-    df = pd.read_csv("data/data.csv")
-    logging.info("CSV loaded successfully")
-except Exception as e:
-    logging.error(f"Error reading CSV: {e}")
-    raise
+def main():
+    try:
+        logging.info("START ETL PIPELINE")
 
-# ======================
-# Transform
-# ======================
-try:
-    # Drop missing values
-    df = df.dropna()
+        # =========================
+        # Extract
+        # =========================
+        df = extract_data("data/data.csv")
+        logging.info("CSV loaded successfully")
 
-    # Convert types safely
-    df.loc[:, "age"] = df["age"].astype(int)
-    df.loc[:, "salary"] = df["salary"].astype(int)
+        print("\nOriginal Data:\n", df)
 
-    # Create salary level feature
-    def salary_level(x):
-        if x > 7000:
-            return "high"
-        else:
-            return "medium"
+        # =========================
+        # Transform
+        # =========================
+        df = clean_data(df)
+        df = add_salary_level(df)
+        df = validate_data(df)
 
-    df.loc[:, "salary_level"] = df["salary"].apply(salary_level)
+        logging.info("Data transformation completed")
 
-    logging.info("Data transformation completed")
+        print("\nCleaned Data:\n", df)
 
-    print("\nCleaned Data:")
-    print(df)
+        # =========================
+        # Load
+        # =========================
+        load_data(df, DB_CONFIG)
 
-except Exception as e:
-    logging.error(f"Error in transformation: {e}")
-    raise
+        logging.info("Data loaded into PostgreSQL successfully ")
+        logging.info("ETL PIPELINE FINISHED SUCCESSFULLY")
 
-# ======================
-# Load
-# ======================
-try:
-    engine = create_engine(
-        f"postgresql://{DB_CONFIG['user']}:{DB_CONFIG['password']}@"
-        f"{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}"
-    )
+        print("\nETL PIPELINE COMPLETED SUCCESSFULLY ")
 
-    df.to_sql("employees", engine, if_exists="replace", index=False)
+    except Exception as e:
+        logging.error(f"ETL PIPELINE FAILED: {e}")
+        print("ERROR:", e)
 
-    logging.info("Data loaded into PostgreSQL successfully 🚀")
 
-except Exception as e:
-    logging.error(f"Database error: {e}")
-    raise
-
-logging.info("ETL PIPELINE FINISHED SUCCESSFULLY")
+if __name__ == "__main__":
+    main()

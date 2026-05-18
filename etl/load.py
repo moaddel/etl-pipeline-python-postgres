@@ -1,15 +1,23 @@
+import logging
 from sqlalchemy import create_engine
-import config
 
-def load_data(df):
-    engine = create_engine(
-        f"postgresql://{config.DB_USER}:{config.DB_PASSWORD}"
-        f"@{config.DB_HOST}:{config.DB_PORT}/{config.DB_NAME}"
-    )
 
-    df.to_sql(
-        config.TABLE_NAME,
-        engine,
-        if_exists="replace",
-        index=False
-    )
+def load_data(df, db_config):
+    try:
+        engine = create_engine(
+            f"postgresql://{db_config['user']}:{db_config['password']}@"
+            f"{db_config['host']}:{db_config['port']}/{db_config['database']}"
+        )
+
+        df.to_sql(
+            "employees",
+            engine,
+            if_exists="replace",
+            index=False
+        )
+
+        logging.info("Data loaded into PostgreSQL successfully")
+
+    except Exception as e:
+        logging.error(f"Load error: {e}")
+        raise
