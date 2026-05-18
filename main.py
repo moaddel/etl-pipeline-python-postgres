@@ -1,20 +1,72 @@
-from etl.extract import extract_data
-from etl.transform import clean_data, add_salary_level
-from etl.load import load_data
+import pandas as pd
+import logging
+from sqlalchemy import create_engine
+from config import DB_CONFIG
 
-print("START ETL")
+# ======================
+# Logging setup
+# ======================
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
-# EXTRACT
-df = extract_data()
-print("Extract done")
+logging.info("START ETL")
 
-# TRANSFORM
-df = clean_data(df)
-df = add_salary_level(df)
-print("Transform done")
+# ======================
+# Extract
+# ======================
+try:
+    df = pd.read_csv("data/data.csv")
+    logging.info("CSV loaded successfully")
+except Exception as e:
+    logging.error(f"Error reading CSV: {e}")
+    raise
 
-# LOAD
-load_data(df)
-print("Load done 🚀")
+# ======================
+# Transform
+# ======================
+try:
+    # Drop missing values
+    df = df.dropna()
 
-print("DONE SUCCESSFULLY")
+    # Convert types safely
+    df.loc[:, "age"] = df["age"].astype(int)
+    df.loc[:, "salary"] = df["salary"].astype(int)
+
+    # Create salary level feature
+    def salary_level(x):
+        if x > 7000:
+            return "high"
+        else:
+            return "medium"
+
+    df.loc[:, "salary_level"] = df["salary"].apply(salary_level)
+
+    logging.info("Data transformation completed")
+
+    print("\nCleaned Data:")
+    print(df)
+
+except Exception as e:
+    logging.error(f"Error in transformation: {e}")
+    raise
+
+# ======================
+# Load
+# ======================
+try:
+    engine = create_engine(
+        f"postgresql://{DB_CONFIG['user']}:{DB_CONFIG['password']}@"
+        f"{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}"
+    )
+
+    df.to_sql("employees", engine, if_exists="replace", index=False)
+
+    logging.info("Data loaded into PostgreSQL successfully 🚀")
+
+except Exception as e:
+    logging.error(f"Database error: {e}")
+    raise
+
+logging.info("ETL PIPELINE FINISHED SUCCESSFULLY")
